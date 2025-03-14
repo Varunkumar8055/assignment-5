@@ -1,102 +1,124 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { MovieService } from "./MovieService";
+import MovieDatabase from "./MovieService";
 
 const app = new Hono();
-const movieService = new MovieService();
+const movieDatabase = new MovieDatabase();
 
 app.get("/", (c) => {
   return c.text("Hello Hono!");
 });
 
+// Add a new movie (User provides the 'id')
 app.post("/movies", async (c) => {
-  const movie = await c.req.json();
-  const addedMovie = movieService.addMovie(movie);
-  if (!addedMovie) {
-    return c.json({ error: "Invalid data" }, 400);
+  const { id, title, director, releaseYear, genre } = await c.req.json();
+
+  if (!id || !title || !director || !releaseYear || !genre) {
+    return c.json({ error: "Missing required fields (id, title, director, releaseYear, genre)" }, 400);
   }
-  return c.json(addedMovie, 201);
+
+  const response = movieDatabase.addMovie(id, title, director, releaseYear, genre);
+  if (response === "Movie ID already exists") {
+    return c.json({ error: response }, 409); // Conflict
+  }
+  
+  return c.json({ message: "Movie added successfully", id }, 201);
 });
 
-app.patch("/movies/:id", async (c) => {
-  const id = c.req.param("id");
-  const updates = await c.req.json();
-  const updatedMovie = movieService.updateMovie(id, updates);
-  if (!updatedMovie) {
-    return c.json({ error: "Movie not found or invalid data" }, 404);
-  }
-  return c.json(updatedMovie);
-});
-
+// Get a movie by ID
 app.get("/movies/:id", (c) => {
   const id = c.req.param("id");
-  const movie = movieService.getMovie(id);
+  const movie = movieDatabase.getMovie(id);
   if (!movie) {
     return c.json({ error: "Movie not found" }, 404);
   }
   return c.json(movie);
 });
 
+// Remove a movie by ID
 app.delete("/movies/:id", (c) => {
   const id = c.req.param("id");
-  const deleted = movieService.deleteMovie(id);
-  if (!deleted) {
+  if (!movieDatabase.getMovie(id)) {
     return c.json({ error: "Movie not found" }, 404);
   }
-  return c.json({ message: "Movie deleted" });
+  
+  movieDatabase.removeMovie(id);
+  return c.json({ message: "Movie removed successfully" });
 });
 
+// Rate a movie
 app.post("/movies/:id/rating", async (c) => {
   const id = c.req.param("id");
   const { rating } = await c.req.json();
-  const added = movieService.addRating(id, rating);
-  if (!added) {
-    return c.json({ error: "Invalid rating or movie not found" }, 400);
+
+  if (rating === undefined || rating < 1 || rating > 10) {
+    return c.json({ error: "Invalid rating, must be between 1 and 10" }, 400);
   }
-  return c.json({ message: "Rating added" });
+
+  if (!movieDatabase.getMovie(id)) {
+    return c.json({ error: "Movie not found" }, 404);
+  }
+
+  movieDatabase.rateMovie(id, rating);
+  return c.json({ message: `Rating ${rating} added to movie ${id}` });
 });
 
+// Get average rating of a movie
 app.get("/movies/:id/rating", (c) => {
   const id = c.req.param("id");
-  const averageRating = movieService.getAverageRating(id);
+  const averageRating = movieDatabase.getAverageRating(id);
+
   if (averageRating === null) {
-    return c.json({ error: "Movie not found or no ratings" }, 404);
+    return c.json({ error: "Movie not found" }, 404);
   }
   return c.json({ averageRating });
 });
 
+// Get top-rated movies
 app.get("/movies/top-rated", (c) => {
-  const topRatedMovies = movieService.getTopRatedMovies();
+  const topRatedMovies = movieDatabase.getTopRatedMovies();
   return c.json(topRatedMovies);
 });
 
+// Get movies by genre
 app.get("/movies/genre/:genre", (c) => {
   const genre = c.req.param("genre");
-  const genreMovies = movieService.getMoviesByGenre(genre);
+  const genreMovies = movieDatabase.getMoviesByGenre(genre);
+
   if (genreMovies.length === 0) {
     return c.json({ error: "No movies found for this genre" }, 404);
   }
   return c.json(genreMovies);
 });
 
+// Get movies by director
 app.get("/movies/director/:director", (c) => {
   const director = c.req.param("director");
-  const directorMovies = movieService.getMoviesByDirector(director);
+  const directorMovies = movieDatabase.getMoviesByDirector(director);
+
   if (directorMovies.length === 0) {
     return c.json({ error: "No movies found for this director" }, 404);
   }
   return c.json(directorMovies);
 });
 
+// Search movies by keyword in title
 app.get("/movies/search", (c) => {
-  const keyword = c.req.query("keyword");
-  const searchResults = movieService.searchMovies(keyword);
+  const keyword = c.req.query("keyword") || "";
+  const searchResults = movieDatabase.searchMoviesBasedOnKeyword(keyword);
+
   if (searchResults.length === 0) {
     return c.json({ error: "No movies found" }, 404);
   }
   return c.json(searchResults);
 });
 
+// Get all movies
+app.get("/movies", (c) => {
+  return c.json(movieDatabase.getAllMovies());
+});
+
+// Start server
 serve(
   {
     fetch: app.fetch,

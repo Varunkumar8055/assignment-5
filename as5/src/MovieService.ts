@@ -1,79 +1,103 @@
-interface Movie {
-    id: string
-    title: string
-    director: string
-    releaseYear: number
-    genre: string
-    ratings: number[]
+type Movie = {
+  id: string;
+  title: string;
+  director: string;
+  releaseYear: number;
+  genre: string;
+  rating: number[];
+};
+
+class MovieDatabase {
+  private movies: Map<string, Movie> = new Map();
+
+  addMovie(id: string, title: string, director: string, releaseYear: number, genre: string): string {
+    if (this.movies.has(id)) {
+      console.log("Movie ID already exists.");
+      return "Movie ID already exists";
+    }
+
+    const movie: Movie = {
+      id,
+      title,
+      director,
+      releaseYear,
+      genre,
+      rating: [],
+    };
+
+    this.movies.set(id, movie);
+    console.log("Movie added successfully");
+    return id;
   }
-  
-  export class MovieService {
-    private movies: Movie[] = []
-  
-    addMovie(movie: Movie): Movie | null {
-      if (!movie.id || !movie.title || !movie.director || !movie.releaseYear || !movie.genre) {
-        return null
-      }
-      this.movies.push(movie)
-      return movie
+
+  rateMovie(id: string, rating: number): void {
+    const movie = this.movies.get(id);
+    if (!movie) {
+      console.log("Movie not found");
+      return;
     }
-  
-    updateMovie(id: string, updates: Partial<Movie>): Movie | null {
-      const movie = this.movies.find(m => m.id === id)
-      if (!movie) {
-        return null
-      }
-      Object.assign(movie, updates)
-      return movie
+
+    if (rating < 0 || rating > 10) {
+      console.log("Rating should be between 0 and 10.");
+      return;
     }
-  
-    getMovie(id: string): Movie | null {
-      return this.movies.find(m => m.id === id) || null
-    }
-  
-    deleteMovie(id: string): boolean {
-      const index = this.movies.findIndex(m => m.id === id)
-      if (index === -1) {
-        return false
-      }
-      this.movies.splice(index, 1)
-      return true
-    }
-  
-    addRating(id: string, rating: number): boolean {
-      const movie = this.movies.find(m => m.id === id)
-      if (!movie || rating < 1 || rating > 5) {
-        return false
-      }
-      movie.ratings.push(rating)
-      return true
-    }
-  
-    getAverageRating(id: string): number | null {
-      const movie = this.movies.find(m => m.id === id)
-      if (!movie || movie.ratings.length === 0) {
-        return null
-      }
-      return movie.ratings.reduce((a, b) => a + b, 0) / movie.ratings.length
-    }
-  
-    getTopRatedMovies(): Movie[] {
-      return this.movies.sort((a, b) => {
-        const avgA = a.ratings.reduce((sum, r) => sum + r, 0) / a.ratings.length || 0
-        const avgB = b.ratings.reduce((sum, r) => sum + r, 0) / b.ratings.length || 0
-        return avgB - avgA
-      })
-    }
-  
-    getMoviesByGenre(genre: string): Movie[] {
-      return this.movies.filter(m => m.genre === genre)
-    }
-  
-    getMoviesByDirector(director: string): Movie[] {
-      return this.movies.filter(m => m.director === director)
-    }
-  
-    searchMovies(keyword: string): Movie[] {
-      return this.movies.filter(m => m.title.includes(keyword))
+
+    movie.rating.push(rating);
+    console.log(`Movie: ${movie.title} has been rated ${rating}`);
+  }
+
+  getAverageRating(id: string): number | null {
+    const movie = this.movies.get(id);
+    if (!movie) return null;
+    if (movie.rating.length === 0) return 0;
+
+    const sum = movie.rating.reduce((total, rating) => total + rating, 0);
+    return sum / movie.rating.length;
+  }
+
+  getMovie(id: string): Movie | null {
+    return this.movies.get(id) || null;
+  }
+
+  removeMovie(id: string): void {
+    if (this.movies.delete(id)) {
+      console.log("Movie removed successfully");
+    } else {
+      console.log("Movie not found");
     }
   }
+
+  getTopRatedMovies(): Movie[] {
+    return Array.from(this.movies.values())
+      .filter((movie) => movie.rating.length > 0)
+      .sort((a, b) => {
+        const avgA = this.getAverageRating(a.id) || 0;
+        const avgB = this.getAverageRating(b.id) || 0;
+        return avgB - avgA; // Descending order
+      });
+  }
+
+  getMoviesByGenre(genre: string): Movie[] {
+    return Array.from(this.movies.values()).filter(
+      (movie) => movie.genre.toLowerCase() === genre.toLowerCase()
+    );
+  }
+
+  getMoviesByDirector(director: string): Movie[] {
+    return Array.from(this.movies.values()).filter(
+      (movie) => movie.director.toLowerCase() === director.toLowerCase()
+    );
+  }
+
+  searchMoviesBasedOnKeyword(keyword: string): Movie[] {
+    return Array.from(this.movies.values()).filter((movie) =>
+      movie.title.toLowerCase().includes(keyword.toLowerCase())
+    );
+  }
+
+  getAllMovies(): Movie[] {
+    return Array.from(this.movies.values());
+  }
+}
+
+export default MovieDatabase;
